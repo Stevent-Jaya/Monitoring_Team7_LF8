@@ -1,0 +1,10 @@
+pytest
+pytest-cov
+ruff
+mypy
+bandit
+pip-audit
+build
+psutil>=5.9.0
+pytest>=7.0.0
+configparser
