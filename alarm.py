@@ -1,142 +1,152 @@
 # alarm.py
+# Two-stage alarm logic + logging + Mailjet email (via HTTP API).
+# Secrets come from environment variables, not hardcoded.
 
-# Importiert das datetime-Modul, um aktuelle Zeitstempel zu erstellen.
-import datetime
-# Importiert das socket-Modul, um den Netzwerknamen (Hostname) der Maschine zu erhalten.
+from __future__ import annotations
+
+import os
 import socket
-# Importiert das sys-Modul (wird hier nur zur Vollständigkeit importiert).
-import sys
-# NEU: HTTP-Client für Mailjet API
+import datetime
+from typing import Optional
+from dotenv import load_dotenv
+load_dotenv()
 import requests
 
-# --- Konfigurationskonstanten ---
-# Definiert den Dateinamen für das Protokoll (Log-Datei).
-LOG_FILE = "server_monitoring.log"
-# Definiert die Ziel-E-Mail-Adresse für Alarme der höchsten Stufe (Hard-Limit).
-EMAIL_RECIPIENT = "stiventchristian@gmail.com"
+# ------- Configuration (env-driven) -------
 
-# NEU: Mailjet-Konfiguration (bitte echte Werte einsetzen)
-MAILJET_API_KEY = "4bc0c20599d8fee485694ffc2d74fde5"
-MAILJET_API_SECRET = "9fe518345cf25e088c4ee789b5bc7c05"
-EMAIL_SENDER = "senior.yasso@gmail.com"   # verifizierte Absenderadresse bei Mailjet
-SENDER_NAME = "Server Monitor"
+# Log file path (default in repo root)
+LOG_FILE = os.getenv("MONITOR_LOG", "server_monitoring.log")
+
+# Mail/alerts
+MAILJET_API_KEY = os.getenv("MAILJET_API_KEY")
+MAILJET_API_SECRET = os.getenv("MAILJET_API_SECRET")
+MAIL_FROM = os.getenv("MAIL_FROM")          # verified sender in Mailjet
+MAIL_TO = os.getenv("MAIL_TO")              # recipient
+MAIL_SENDER_NAME = os.getenv("MAIL_SENDER_NAME", "Server Monitor")
 MAILJET_ENDPOINT = "https://api.mailjet.com/v3.1/send"
 
-# Definiert eine interne Funktion zum Schreiben von Nachrichten in die Logdatei.
-# Sie akzeptiert den Alarmstatus, den aktuellen Wert, das Hardlimit und einen Informationstext.
-def _log_message(message: str, current_value: float, hard_limit: float, info_text: str):
+
+# ------- Internal helpers -------
+
+def _now_str() -> str:
+    return datetime.datetime.now().isoformat(sep=" ", timespec="seconds")
+
+
+def _hostname() -> str:
+    return socket.gethostname()
+
+
+def _log_message(level: str, current_value: float, hard_limit: float, info_text: str) -> None:
     """
-    Schreibt eine formatierte Nachricht in die Logdatei und gibt sie auf der Konsole aus.
+    Append a line to the log file and echo to stdout.
+    Format example:
+      [2025-10-10 12:34:56] Host: MYPC | LEVEL: SOFT_WARNING | INFO: mem | VALUE: 85 | HARD_LIMIT: 95
     """
-    # Erstellt den aktuellen Zeitstempel im gewünschten Format (Jahr-Monat-Tag Stunde:Minute:Sekunde).
-    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    # Ruft den Hostnamen (Netzwerknamen) der Maschine ab.
-    hostname = socket.gethostname()
-    
-    # Der Text enthält Datum/Uhrzeit, Hostname, Level, Infotext und Wert
-    # Formatiert die gesamte Logzeile mithilfe von f-Strings.
-    log_entry = (
-        f"[{now}] Host: {hostname} | LEVEL: {message} | "
+    line = (
+        f"[{_now_str()}] Host: {_hostname()} | LEVEL: {level} | "
         f"INFO: {info_text} | VALUE: {current_value} | HARD_LIMIT: {hard_limit}"
     )
-
-    # Beginnt einen try-Block, um potenzielle Fehler beim Schreiben der Datei abzufangen.
     try:
-        # Öffnet die Logdatei im Anhänge-Modus ("a" für append).
-        with open(LOG_FILE, "a") as f:
-            # Schreibt den formatierten Eintrag gefolgt von einem Zeilenumbruch.
-            f.write(log_entry + "\n")
-        # Gibt die Meldung auch auf der Konsole aus.
-        print(f"LOGGED: {log_entry}")
-    # Fängt den IOError ab (z.B. wenn die Datei nicht erstellt/geschrieben werden kann).
-    except IOError as e:
-        # Gibt eine Fehlermeldung auf der Konsole aus.
-        print(f"ERROR: Konnte Logdatei '{LOG_FILE}' nicht schreiben: {e}")
+        with open(LOG_FILE, "a", encoding="utf-8") as f:
+            f.write(line + "\n")
+    except OSError as e:
+        print(f"ERROR: could not write log file '{LOG_FILE}': {e}")
+    print(f"LOGGED: {line}")
 
-# Definiert eine interne Funktion zur (jetzt echten) E-Mail-Zustellung über Mailjet.
-def _send_email(subject: str, body: str):
+
+def _mailjet_env_ready() -> bool:
+    return bool(MAILJET_API_KEY and MAILJET_API_SECRET and MAIL_FROM and MAIL_TO)
+
+
+def _send_email(subject: str, body: str) -> None:
     """
-    Sendet eine echte E-Mail über die Mailjet HTTP API (v3.1).
-    Ersetzt die vorherige Simulation, Signatur bleibt gleich.
+    Send a message via Mailjet HTTP API (v3.1).
+    Skips sending if required env vars are missing.
     """
+    if not _mailjet_env_ready():
+        print("WARN: Mailjet env vars not set; skipping email send.")
+        print(f"Subject (skipped): {subject}\nBody:\n{body}")
+        return
+
     payload = {
-        "Messages": [
-            {
-                "From": {"Email": EMAIL_SENDER, "Name": SENDER_NAME},
-                "To": [{"Email": EMAIL_RECIPIENT, "Name": "Alarm Empfänger"}],
-                "Subject": subject,
-                "TextPart": body
-            }
-        ]
+        "Messages": [{
+            "From": {"Email": MAIL_FROM, "Name": MAIL_SENDER_NAME},
+            "To": [{"Email": MAIL_TO}],
+            "Subject": subject,
+            "TextPart": body
+        }]
     }
 
-    print("-" * 50)
     try:
         resp = requests.post(
             MAILJET_ENDPOINT,
             auth=(MAILJET_API_KEY, MAILJET_API_SECRET),
             json=payload,
-            timeout=15
+            timeout=20
         )
         if resp.status_code == 200:
-            print(f"HARD-LIMIT ALARM - E-MAIL SENT to {EMAIL_RECIPIENT} via Mailjet")
+            print(f"HARD-LIMIT ALARM - Email sent to {MAIL_TO} via Mailjet.")
         else:
-            print(f"ERROR: Mailjet antwortete mit Status {resp.status_code}: {resp.text}")
-        print(f"Subject: {subject}")
-        print(f"Body:\n{body}")
+            print(f"ERROR: Mailjet responded {resp.status_code}: {resp.text}")
     except requests.RequestException as e:
-        print(f"ERROR: Versand über Mailjet fehlgeschlagen: {e}")
-        print(f"Subject: {subject}")
-        print(f"Body:\n{body}")
-    print("-" * 50)
+        print(f"ERROR: Mailjet request failed: {e}")
 
-# Definiert die Hauptfunktion zur Überprüfung der Schwellenwerte (zweistufiges Alarmsystem).
-def check_limits(current_value: float, soft_limit: float, hard_limit: float, info_text: str):
+
+# ------- Public API (used by monitoring1.py) -------
+
+def check_limits(current_value: float, soft_limit: float, hard_limit: float, info_text: str) -> str:
     """
-    Überprüft den aktuellen Wert gegen Soft- und Hardlimits und löst ggf. Alarme aus.
+    Two-stage alarm:
+      - > hard_limit  -> log HARD_ALARM and send Mailjet email
+      - > soft_limit  -> log SOFT_WARNING
+      - else          -> print OK
+    Returns: "HARD_ALARM" | "SOFT_WARNING" | "OK"
     """
-    # Prüft, ob der aktuelle Wert das Hardlimit überschreitet (höchste Alarmstufe).
     if current_value > hard_limit:
-        # Hardlimit: E-Mail senden und loggen
         _log_message("HARD_ALARM", current_value, hard_limit, info_text)
-        
-        # Erstellt den Betreff für die kritische E-Mail.
-        subject = f"CRITICAL ALARM: {info_text} exceeded Hard Limit"
-        # Erstellt den detaillierten Textkörper (Body) der E-Mail.
+        subject = f"CRITICAL: {info_text} exceeded hard limit on {_hostname()}"
         body = (
-            f"Machine: {socket.gethostname()}\n"
-            f"Time: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
-            f"Measurement: {info_text}\n"
-            f"Current Value: {current_value}\n"
-            f"Hard Limit: {hard_limit}"
+            f"Machine: {_hostname()}\n"
+            f"Time:    {_now_str()}\n"
+            f"Metric:  {info_text}\n"
+            f"Value:   {current_value}\n"
+            f"Hard:    {hard_limit}\n"
         )
-        # Ruft die Funktion zum Senden der E-Mail (jetzt real) auf.
         _send_email(subject, body)
         return "HARD_ALARM"
 
-    # Prüft, ob der aktuelle Wert das Softlimit überschreitet (zweite Alarmstufe).
-    elif current_value > soft_limit:
+    if current_value > soft_limit:
         _log_message("SOFT_WARNING", current_value, hard_limit, info_text)
         return "SOFT_WARNING"
-        
-    # Wenn keines der Limits überschritten wurde.
-    else:
-        print(f"OK: {info_text} (Current: {current_value}) is within limits.")
-        return "OK"
 
-# Definiert eine Funktion, die die aktuell eingeloggten Benutzer erfasst und protokolliert.
-def log_current_users():
+    print(f"OK: {info_text} (Current: {current_value}) is within limits.")
+    return "OK"
+
+
+def log_current_users() -> int:
     """
-    Erfasst die aktuell eingeloggten Benutzer und loggt diese.
+    Log currently logged-in users. Returns the user count.
     """
     try:
-        import psutil
-        users = psutil.users()
-        user_list = [f"{u.name}@{u.host} since {datetime.datetime.fromtimestamp(u.started).strftime('%H:%M')}" for u in users]
-        user_count = len(users)
-        info_text = f"Currently logged in users ({user_count}): {', '.join(user_list)}"
-        _log_message("USER_INFO", user_count, 0, info_text)
-        return user_count
+        import psutil  # local import to keep module import light if psutil is missing
     except ImportError:
         print("WARNING: psutil is required for user logging.")
         return 0
+
+    users = psutil.users()
+    count = len(users)
+    details = []
+    for u in users:
+        try:
+            started = datetime.datetime.fromtimestamp(u.started).strftime("%H:%M")
+        except Exception:
+            started = "?"
+        details.append(f"{u.name}@{getattr(u, 'host', '') or 'local'} since {started}")
+
+    info_text = f"Currently logged in users ({count}): {', '.join(details) if details else '-'}"
+    # For user info, hard limit is not relevant; pass 0 for display.
+    _log_message("USER_INFO", float(count), 0.0, info_text)
+    return count
+
+
+__all__ = ["check_limits", "log_current_users"]
