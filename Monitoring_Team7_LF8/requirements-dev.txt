@@ -1,0 +1,9 @@
+pytest
+pytest-cov
+ruff
+mypy
+bandit
+pip-audit
+build
+types-requests
+types-psutil
