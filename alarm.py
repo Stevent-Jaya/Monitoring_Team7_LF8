@@ -7,11 +7,11 @@ from __future__ import annotations
 import os
 import socket
 import datetime
-from typing import Optional
 from dotenv import load_dotenv
-load_dotenv()
 import requests
 
+#load variables from local .env
+load_dotenv()
 # ------- Configuration (env-driven) -------
 
 # Log file path (default in repo root)
