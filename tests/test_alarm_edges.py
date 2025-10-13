@@ -64,8 +64,10 @@ def test_mailjet_exception(monkeypatch, tmp_path):
     importlib.reload(alarm)
 
     def boom(*args, **kwargs):
+        # Raise the REAL requests.RequestException
         raise requests.RequestException("net down")
 
-    alarm.requests = SimpleNamespace(post=boom)
+    # ✅ Patch only the post function, keep the real requests module in place
+    monkeypatch.setattr(alarm.requests, "post", boom)
 
     assert alarm.check_limits(99, 80, 95, "mem") == "HARD_ALARM"
