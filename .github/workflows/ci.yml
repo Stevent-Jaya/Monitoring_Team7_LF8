@@ -31,24 +31,28 @@ jobs:
           python -m pip install -U pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
           if [ -f requirements-dev.txt ]; then pip install -r requirements-dev.txt; fi
-          # fallbacks if you don't have a dev reqs file
           pip install -q --disable-pip-version-check pytest pytest-cov ruff mypy bandit pip-audit build
 
       - name: Lint (ruff)
         run: ruff check .
 
       - name: Type-check (mypy)
+        env:
+          PYTHONPATH: ${{ github.workspace }}
         run: mypy .
 
       - name: Security scan (bandit)
+        env:
+          PYTHONPATH: ${{ github.workspace }}
         run: bandit -r alarm.py monitoring1.py
 
       - name: Dependency audit (pip-audit)
-        # non-blocking; change to just `pip-audit -r requirements.txt` to fail the build on vulnerable deps
         run: |
           if [ -f requirements.txt ]; then pip-audit -r requirements.txt || true; else echo "no requirements.txt"; fi
 
       - name: Run tests (with coverage)
+        env:
+          PYTHONPATH: ${{ github.workspace }}
         run: |
           pytest -q --cov=. --cov-report=xml --cov-report=term-missing --cov-fail-under=80
 
