@@ -9,6 +9,7 @@ import socket
 import datetime
 from dotenv import load_dotenv
 import requests
+from typing import cast
 
 #load variables from local .env
 load_dotenv()
@@ -68,10 +69,16 @@ def _send_email(subject: str, body: str) -> None:
         print(f"Subject (skipped): {subject}\nBody:\n{body}")
         return
 
+    # Narrow Optional[str] → str for mypy (we know they're set thanks to the guard above)
+    api_key = cast(str, MAILJET_API_KEY)
+    api_secret = cast(str, MAILJET_API_SECRET)
+    sender = cast(str, MAIL_FROM)
+    recipient = cast(str, MAIL_TO)
+
     payload = {
         "Messages": [{
-            "From": {"Email": MAIL_FROM, "Name": MAIL_SENDER_NAME},
-            "To": [{"Email": MAIL_TO}],
+            "From": {"Email": sender, "Name": MAIL_SENDER_NAME},
+            "To": [{"Email": recipient}],
             "Subject": subject,
             "TextPart": body
         }]
@@ -80,12 +87,12 @@ def _send_email(subject: str, body: str) -> None:
     try:
         resp = requests.post(
             MAILJET_ENDPOINT,
-            auth=(MAILJET_API_KEY, MAILJET_API_SECRET),
+            auth=(api_key, api_secret),  # now Tuple[str, str]
             json=payload,
             timeout=20
         )
         if resp.status_code == 200:
-            print(f"HARD-LIMIT ALARM - Email sent to {MAIL_TO} via Mailjet.")
+            print(f"HARD-LIMIT ALARM - Email sent to {recipient} via Mailjet.")
         else:
             print(f"ERROR: Mailjet responded {resp.status_code}: {resp.text}")
     except requests.RequestException as e:
