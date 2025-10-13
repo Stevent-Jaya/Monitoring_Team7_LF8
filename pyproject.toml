@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "server-monitoring-team7"
+version = "0.1.0"
+description = "Two-stage server monitoring (disk/process/users) with Mailjet alerts"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "Team 7", email = "team7@LF8.com" }]
+
+# runtime deps (CI already installs these, but they belong here for the wheel)
+dependencies = [
+  "psutil",
+  "requests",
+  "python-dotenv"
+]
+
+# CLI command after install: `monitoring`
+[project.scripts]
+monitoring = "monitoring1:main"
+
+[tool.setuptools]
+# package single-file modules (no package directory needed)
+py-modules = ["monitoring1", "alarm"]
