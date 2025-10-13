@@ -51,7 +51,7 @@ def get_process_count():
 # --- Hauptlogik und Kommandozeilensteuerung ---
 
 # Definiert die zentrale Funktion, die Daten erfasst und die Alarmprüfung auslöst.
-def monitor_data(data_type: str, soft_limit: float, hard_limit: float, path: str = None):
+def monitor_data(data_type: str, soft_limit: float, hard_limit: float, path: Optional[str] = None):
     """
     Erfasst die Messdaten, ruft das Alarmsystem auf und gibt das Ergebnis zurück.
     """
@@ -63,10 +63,10 @@ def monitor_data(data_type: str, soft_limit: float, hard_limit: float, path: str
     # 1. Messdaten erfassen (Echtzeit)
     # Prüft, ob der Benutzer 'disk_usage' angefordert hat.
     if data_type.lower() == 'disk_usage':
-        # Ruft den aktuellen Wert der Plattennutzung ab.
-        current_value = get_disk_usage(path)
-        # Aktualisiert den Infotext, um den geprüften Pfad aufzunehmen.
-        info_text = f"Disk Usage (%) on {path}"
+        # pick a concrete path: CLI value if given, else "/"
+        selected_path = path if path is not None else '/'
+        current_value = get_disk_usage(selected_path)
+        info_text = f"Disk Usage (%) on {selected_path}"
     # Prüft, ob der Benutzer 'process_count' angefordert hat.
     elif data_type.lower() == 'process_count':
         # Ruft die Anzahl der Prozesse ab und konvertiert sie in float für die Prüfung.
