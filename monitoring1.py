@@ -10,7 +10,7 @@ import psutil
 from alarm import check_limits, log_current_users
 # Importiert das os-Modul zur Interaktion mit dem Betriebssystem (z.B. Pfadkorrektur für Windows).
 import os
-
+from typing import Optional
 # --- Hilfsfunktionen für die Messdatenerfassung (Echtzeit) ---
 
 # Definiert die Funktion zur Ermittlung des prozentualen Plattenplatzverbrauchs.
