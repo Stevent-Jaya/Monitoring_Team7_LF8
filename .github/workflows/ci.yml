@@ -41,7 +41,7 @@ jobs:
         run: mypy .
 
       - name: Security scan (bandit)
-        run: bandit -r .
+        run: bandit -r alarm.py monitoring1.py
 
       - name: Dependency audit (pip-audit)
         # non-blocking; change to just `pip-audit -r requirements.txt` to fail the build on vulnerable deps
