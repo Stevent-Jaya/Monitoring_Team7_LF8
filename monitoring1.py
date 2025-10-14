@@ -3,13 +3,13 @@
 import argparse
 import sys
 import os
-from typing import Optional, List, Dict, TypedDict
+from typing import Optional, List, Dict, TypedDict, cast
 
 import psutil
-import alarm
-from alarm import Result
+# Import concrete names so mypy can see them
+from alarm import check_limits, log_current_users, send_summary_email, Result
 
-# -------- Per-metric defaults --------
+# -------- Per-metric defaults (typed) --------
 class DefaultsMetric(TypedDict):
     soft: Optional[float]
     hard: Optional[float]
@@ -22,6 +22,12 @@ DEFAULTS: Dict[str, DefaultsMetric] = {
     "user_count":   {"soft": None,  "hard": None,  "path": None},
 }
 
+def get_defaults(metric: str) -> DefaultsMetric:
+    """Return DefaultsMetric with non-missing keys for any metric."""
+    d = DEFAULTS.get(metric)
+    if d is None:
+        return {"soft": None, "hard": None, "path": None}
+    return d
 
 # -------- Collectors --------
 def get_disk_usage(path: str = "/") -> Optional[float]:
@@ -53,7 +59,7 @@ def monitor_data(data_type: str, soft_limit: float, hard_limit: float, path: Opt
     info_text = f"Measurement: {data_type}"
 
     if dt == "disk_usage":
-        selected_path = path if path is not None else "/"
+        selected_path = (path if path is not None else "/")
         current_value = get_disk_usage(selected_path)
         info_text = f"Disk Usage (%) on {selected_path}"
     elif dt == "process_count":
@@ -64,7 +70,7 @@ def monitor_data(data_type: str, soft_limit: float, hard_limit: float, path: Opt
         info_text = "Memory Usage (%)"
     elif dt == "user_count":
         print("\n--- User Logging (INFO ONLY) ---")
-        alarm.log_current_users()
+        log_current_users()
         return "USER_LOGGED"
     else:
         print(f"ERROR: Unknown data type '{data_type}'. Use 'disk_usage', 'process_count', 'memory_usage' or 'user_count'.")
@@ -74,7 +80,7 @@ def monitor_data(data_type: str, soft_limit: float, hard_limit: float, path: Opt
         return "ERROR"
 
     print(f"\n--- Checking {info_text} (Current Value: {current_value}) ---")
-    return alarm.check_limits(current_value, soft_limit, hard_limit, info_text)
+    return check_limits(current_value, soft_limit, hard_limit, info_text)
 
 # -------- All-metrics runner --------
 def monitor_all(disk_path: Optional[str] = None, *, send_one_email: bool = True) -> str:
@@ -85,56 +91,62 @@ def monitor_all(disk_path: Optional[str] = None, *, send_one_email: bool = True)
     results: List[Result] = []
 
     # Disk
-    d = DEFAULTS["disk_usage"]
-    disk_selected = disk_path if disk_path is not None else d["path"]
+    d = get_defaults("disk_usage")
+    disk_selected = (disk_path if disk_path is not None else d["path"]) or "/"
     dv = get_disk_usage(disk_selected)
     if dv is not None:
-        lvl = alarm.check_limits(float(dv), float(d["soft"]), float(d["hard"]),
+        soft_d = cast(float, d["soft"])
+        hard_d = cast(float, d["hard"])
+        lvl = check_limits(float(dv), soft_d, hard_d,
                            f"Disk Usage (%) on {disk_selected}",
                            trigger_email=not send_one_email)
         results.append({
             "metric": f"Disk ({disk_selected})",
             "level": lvl,
             "current": float(dv),
-            "soft": float(d["soft"]),
-            "hard": float(d["hard"]),
+            "soft": soft_d,
+            "hard": hard_d,
         })
 
     # Memory
-    m = DEFAULTS["memory_usage"]
+    m = get_defaults("memory_usage")
     mv = get_memory_usage()
-    lvl = alarm.check_limits(float(mv), float(m["soft"]), float(m["hard"]),
+    soft_m = cast(float, m["soft"])
+    hard_m = cast(float, m["hard"])
+    lvl = check_limits(float(mv), soft_m, hard_m,
                        "Memory Usage (%)",
                        trigger_email=not send_one_email)
     results.append({
         "metric": "Memory",
         "level": lvl,
         "current": float(mv),
-        "soft": float(m["soft"]),
-        "hard": float(m["hard"]),
+        "soft": soft_m,
+        "hard": hard_m,
     })
 
     # Processes
-    p = DEFAULTS["process_count"]
+    p = get_defaults("process_count")
     pv = float(get_process_count())
-    lvl = alarm.check_limits(float(pv), float(p["soft"]), float(p["hard"]),
+    soft_p = cast(float, p["soft"])
+    hard_p = cast(float, p["hard"])
+    lvl = check_limits(float(pv), soft_p, hard_p,
                        "Running Process Count",
                        trigger_email=not send_one_email)
     results.append({
         "metric": "Processes",
         "level": lvl,
         "current": float(pv),
-        "soft": float(p["soft"]),
-        "hard": float(p["hard"]),
+        "soft": soft_p,
+        "hard": hard_p,
     })
 
     # Users (info-only)
     print("\n--- User Logging (INFO ONLY) ---")
-    alarm.log_current_users()
+    log_current_users()
 
     if send_one_email:
         # one summary email if any HARD alarm occurred (change only_hard=False to always send)
-        alarm.send_summary_email(results, only_hard=True)
+        send_summary_email(results, only_hard=True)
 
     if any(r["level"] == "HARD_ALARM" for r in results):
         return "HARD_ALARM"
@@ -180,14 +192,14 @@ def main() -> None:
         return
 
     # Per-metric defaults when flags omitted
-    defaults = DEFAULTS.get(metric, {})
-    soft = args.soft_limit if args.soft_limit is not None else defaults.get("soft")
-    hard = args.hard_limit if args.hard_limit is not None else defaults.get("hard")
-    eff_path = args.path if args.path is not None else defaults.get("path")
+    defaults = get_defaults(metric)
+    soft_v = args.soft_limit if args.soft_limit is not None else defaults["soft"]
+    hard_v = args.hard_limit if args.hard_limit is not None else defaults["hard"]
+    eff_path = args.path if args.path is not None else defaults["path"]
 
-    # For metrics that ignore limits (user_count), use numeric placeholders
-    soft_f = 0.0 if soft is None else float(soft)
-    hard_f = 0.0 if hard is None else float(hard)
+    # Metrics that ignore limits (user_count) get numeric placeholders
+    soft_f: float = float(soft_v) if soft_v is not None else 0.0
+    hard_f: float = float(hard_v) if hard_v is not None else 0.0
 
     monitor_data(metric, soft_f, hard_f, eff_path)
 
