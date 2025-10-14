@@ -9,6 +9,8 @@ import alarm  # ← import the module
 # for type-checkers only; not used at runtime
 if TYPE_CHECKING:
     from alarm import Result
+    
+alarm.log_current_users()  # type: ignore[attr-defined]
 
 # -------- Per-metric defaults (typed) --------
 class DefaultsMetric(TypedDict):
