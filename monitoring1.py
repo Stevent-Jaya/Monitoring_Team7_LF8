@@ -3,18 +3,25 @@
 import argparse
 import sys
 import os
-from typing import Optional, List
+from typing import Optional, List, Dict, TypedDict, cast
 
 import psutil
-from alarm import check_limits, log_current_users, send_summary_email, Result
+import alarm
+from alarm import Result
 
 # -------- Per-metric defaults --------
-DEFAULTS = {
+class DefaultsMetric(TypedDict):
+    soft: Optional[float]
+    hard: Optional[float]
+    path: Optional[str]
+
+DEFAULTS: Dict[str, DefaultsMetric] = {
     "disk_usage":   {"soft": 80.0,  "hard": 95.0,  "path": "/"},
     "memory_usage": {"soft": 80.0,  "hard": 90.0,  "path": None},
     "process_count":{"soft": 150.0, "hard": 220.0, "path": None},
     "user_count":   {"soft": None,  "hard": None,  "path": None},
 }
+
 
 # -------- Collectors --------
 def get_disk_usage(path: str = "/") -> Optional[float]:
@@ -57,7 +64,7 @@ def monitor_data(data_type: str, soft_limit: float, hard_limit: float, path: Opt
         info_text = "Memory Usage (%)"
     elif dt == "user_count":
         print("\n--- User Logging (INFO ONLY) ---")
-        log_current_users()
+        alarm.log_current_users()
         return "USER_LOGGED"
     else:
         print(f"ERROR: Unknown data type '{data_type}'. Use 'disk_usage', 'process_count', 'memory_usage' or 'user_count'.")
@@ -67,7 +74,7 @@ def monitor_data(data_type: str, soft_limit: float, hard_limit: float, path: Opt
         return "ERROR"
 
     print(f"\n--- Checking {info_text} (Current Value: {current_value}) ---")
-    return check_limits(current_value, soft_limit, hard_limit, info_text)
+    return alarm.check_limits(current_value, soft_limit, hard_limit, info_text)
 
 # -------- All-metrics runner --------
 def monitor_all(disk_path: Optional[str] = None, *, send_one_email: bool = True) -> str:
@@ -82,7 +89,7 @@ def monitor_all(disk_path: Optional[str] = None, *, send_one_email: bool = True)
     disk_selected = disk_path if disk_path is not None else d["path"]
     dv = get_disk_usage(disk_selected)
     if dv is not None:
-        lvl = check_limits(float(dv), float(d["soft"]), float(d["hard"]),
+        lvl = alarm.check_limits(float(dv), float(d["soft"]), float(d["hard"]),
                            f"Disk Usage (%) on {disk_selected}",
                            trigger_email=not send_one_email)
         results.append({
@@ -96,7 +103,7 @@ def monitor_all(disk_path: Optional[str] = None, *, send_one_email: bool = True)
     # Memory
     m = DEFAULTS["memory_usage"]
     mv = get_memory_usage()
-    lvl = check_limits(float(mv), float(m["soft"]), float(m["hard"]),
+    lvl = alarm.check_limits(float(mv), float(m["soft"]), float(m["hard"]),
                        "Memory Usage (%)",
                        trigger_email=not send_one_email)
     results.append({
@@ -110,7 +117,7 @@ def monitor_all(disk_path: Optional[str] = None, *, send_one_email: bool = True)
     # Processes
     p = DEFAULTS["process_count"]
     pv = float(get_process_count())
-    lvl = check_limits(float(pv), float(p["soft"]), float(p["hard"]),
+    lvl = alarm.check_limits(float(pv), float(p["soft"]), float(p["hard"]),
                        "Running Process Count",
                        trigger_email=not send_one_email)
     results.append({
@@ -123,11 +130,11 @@ def monitor_all(disk_path: Optional[str] = None, *, send_one_email: bool = True)
 
     # Users (info-only)
     print("\n--- User Logging (INFO ONLY) ---")
-    log_current_users()
+    alarm.log_current_users()
 
     if send_one_email:
         # one summary email if any HARD alarm occurred (change only_hard=False to always send)
-        send_summary_email(results, only_hard=True)
+        alarm.send_summary_email(results, only_hard=True)
 
     if any(r["level"] == "HARD_ALARM" for r in results):
         return "HARD_ALARM"
