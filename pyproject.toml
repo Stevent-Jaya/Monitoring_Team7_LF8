@@ -24,3 +24,6 @@ monitoring = "monitoring1:main"
 [tool.setuptools]
 # package single-file modules (no package directory needed)
 py-modules = ["monitoring1", "alarm"]
+
+[tool.ruff.lint.per-file-ignores]
+"alarm.py" = ["F822"]
