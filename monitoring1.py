@@ -130,7 +130,7 @@ def monitor_all(disk_path: Optional[str] = None, *, send_one_email: bool = True)
     pv = float(get_process_count())
     soft_p = cast(float, p["soft"])
     hard_p = cast(float, p["hard"])
-    lvl = check_limits(float(pv), soft_p, hard_p,
+    lvl = alarm.check_limits(float(pv), soft_p, hard_p,
                        "Running Process Count",
                        trigger_email=not send_one_email)
     results.append({
