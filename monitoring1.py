@@ -71,7 +71,7 @@ def monitor_data(data_type: str, soft_limit: float, hard_limit: float, path: Opt
         info_text = "Memory Usage (%)"
     elif dt == "user_count":
         print("\n--- User Logging (INFO ONLY) ---")
-        log_current_users()
+        alarm.log_current_users()
         return "USER_LOGGED"
     else:
         print(f"ERROR: Unknown data type '{data_type}'. Use 'disk_usage', 'process_count', 'memory_usage' or 'user_count'.")
@@ -81,7 +81,7 @@ def monitor_data(data_type: str, soft_limit: float, hard_limit: float, path: Opt
         return "ERROR"
 
     print(f"\n--- Checking {info_text} (Current Value: {current_value}) ---")
-    return check_limits(current_value, soft_limit, hard_limit, info_text)
+    return alarm.check_limits(current_value, soft_limit, hard_limit, info_text)
 
 # -------- All-metrics runner --------
 def monitor_all(disk_path: Optional[str] = None, *, send_one_email: bool = True) -> str:
@@ -98,7 +98,7 @@ def monitor_all(disk_path: Optional[str] = None, *, send_one_email: bool = True)
     if dv is not None:
         soft_d = cast(float, d["soft"])
         hard_d = cast(float, d["hard"])
-        lvl = check_limits(float(dv), soft_d, hard_d,
+        lvl = alarm.check_limits(float(dv), soft_d, hard_d,
                            f"Disk Usage (%) on {disk_selected}",
                            trigger_email=not send_one_email)
         results.append({
@@ -114,7 +114,7 @@ def monitor_all(disk_path: Optional[str] = None, *, send_one_email: bool = True)
     mv = get_memory_usage()
     soft_m = cast(float, m["soft"])
     hard_m = cast(float, m["hard"])
-    lvl = check_limits(float(mv), soft_m, hard_m,
+    lvl = alarm.check_limits(float(mv), soft_m, hard_m,
                        "Memory Usage (%)",
                        trigger_email=not send_one_email)
     results.append({
@@ -143,11 +143,11 @@ def monitor_all(disk_path: Optional[str] = None, *, send_one_email: bool = True)
 
     # Users (info-only)
     print("\n--- User Logging (INFO ONLY) ---")
-    log_current_users()
+    alarm.log_current_users()
 
     if send_one_email:
         # one summary email if any HARD alarm occurred (change only_hard=False to always send)
-        send_summary_email(results, only_hard=True)
+        alarm.send_summary_email(results, only_hard=True)
 
     if any(r["level"] == "HARD_ALARM" for r in results):
         return "HARD_ALARM"
