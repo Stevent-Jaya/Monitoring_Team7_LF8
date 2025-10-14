@@ -7,7 +7,7 @@ from typing import Optional, List, Dict, TypedDict, cast
 
 import psutil
 # Import concrete names so mypy can see them
-from alarm import check_limits, log_current_users, send_summary_email, Result
+from alarm import check_limits, log_current_users, send_summary_email, Result  # type: ignore[attr-defined]
 
 # -------- Per-metric defaults (typed) --------
 class DefaultsMetric(TypedDict):
