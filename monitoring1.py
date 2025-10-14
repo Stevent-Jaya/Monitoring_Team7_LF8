@@ -3,7 +3,7 @@
 import argparse
 import sys
 import os
-from typing import Optional, List
+from typing import Optional
 
 import psutil
 from alarm import check_limits, log_current_users, send_summary_email
