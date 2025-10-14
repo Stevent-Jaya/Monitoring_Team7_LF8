@@ -262,8 +262,3 @@ Choose one (e.g., MIT). Add a `LICENSE` file.
 * GitHub Actions for CI
 
 ---
-
-If you want, I can also generate **Mermaid/PlantUML diagrams** for:
-
-* the **pipeline sequence** (Dev → push → CI jobs → build → optional deploy), and
-* a **class/interaction diagram** (CLI → collectors → alarm → email/log).
