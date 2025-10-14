@@ -1,13 +1,14 @@
-# monitoring1.py
-
 import argparse
 import sys
 import os
-from typing import Optional, List, Dict, TypedDict, cast
+from typing import Optional, List, Dict, TypedDict, cast, TYPE_CHECKING
 
 import psutil
-# Import concrete names so mypy can see them
-from alarm import check_limits, log_current_users, send_summary_email, Result  # type: ignore[attr-defined]
+import alarm  # ← import the module
+
+# for type-checkers only; not used at runtime
+if TYPE_CHECKING:
+    from alarm import Result
 
 # -------- Per-metric defaults (typed) --------
 class DefaultsMetric(TypedDict):
