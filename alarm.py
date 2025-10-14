@@ -200,4 +200,4 @@ def send_summary_email(results: Iterable[Result], *, only_hard: bool = True) -> 
     _send_email(subject, body)
 
 
-__all__ = ["check_limits", "send_summary_email", "log_current_users"]
+__all__ = ["check_limits", "send_summary_email", "log_current_users", "Result"]
