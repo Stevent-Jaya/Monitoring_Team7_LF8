@@ -3,7 +3,7 @@
 import argparse
 import sys
 import os
-from typing import Optional, List, Dict, TypedDict, cast
+from typing import Optional, List, Dict, TypedDict
 
 import psutil
 import alarm
