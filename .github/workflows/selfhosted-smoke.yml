@@ -1,15 +1,14 @@
-name: test self-hosted
+name: self-hosted smoke
 
 on:
   workflow_dispatch:
 
 jobs:
   ping:
-    runs-on: [self-hosted, Windows]   # targets your PC
+    runs-on: [self-hosted, Windows]   # or add your label if you set one
     steps:
-      - name: Say hi from the runner
+      - name: Who am I?
         shell: powershell
         run: |
-          hostname
-          $PSVersionTable
-          Get-Date
+          Write-Host "Runner: $env:COMPUTERNAME"
+          Write-Host "User: $env:USERNAME"
