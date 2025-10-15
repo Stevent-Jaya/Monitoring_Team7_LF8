@@ -9,7 +9,7 @@ import alarm  # ← import the module
 # for type-checkers only; not used at runtime
 if TYPE_CHECKING:
     from alarm import Result
-    
+
 alarm.log_current_users()  # type: ignore[attr-defined]
 
 # -------- Per-metric defaults (typed) --------
@@ -73,7 +73,7 @@ def monitor_data(data_type: str, soft_limit: float, hard_limit: float, path: Opt
         info_text = "Memory Usage (%)"
     elif dt == "user_count":
         print("\n--- User Logging (INFO ONLY) ---")
-        alarm.log_current_users()
+        alarm.log_current_users()  # type: ignore[attr-defined]
         return "USER_LOGGED"
     else:
         print(f"ERROR: Unknown data type '{data_type}'. Use 'disk_usage', 'process_count', 'memory_usage' or 'user_count'.")
@@ -145,7 +145,7 @@ def monitor_all(disk_path: Optional[str] = None, *, send_one_email: bool = True)
 
     # Users (info-only)
     print("\n--- User Logging (INFO ONLY) ---")
-    alarm.log_current_users()
+    alarm.log_current_users()  # type: ignore[attr-defined]
 
     if send_one_email:
         # one summary email if any HARD alarm occurred (change only_hard=False to always send)
