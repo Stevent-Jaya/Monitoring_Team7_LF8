@@ -1,42 +1,39 @@
-name: Windows deploy (self-hosted)
+# .github/workflows/deploy-windows.yml
+name: Deploy to self-hosted Windows
 
 on:
   push:
-    branches: [main]
-  workflow_dispatch:
+    branches: [ main ]
 
 jobs:
   deploy:
-    runs-on: [self-hosted, Windows]   # add your custom label if you used one
-    timeout-minutes: 20
-
+    runs-on: [self-hosted, Windows]
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Sync repo to C:\monitoring\app
         shell: powershell
         run: |
+          Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
           $dest = 'C:\monitoring\app'
-          robocopy "$env:GITHUB_WORKSPACE" $dest /MIR /NFL /NDL /NJH /NJS /NP | Out-Null
+          if (!(Test-Path $dest)) { New-Item -ItemType Directory -Path $dest | Out-Null }
+          robocopy $PWD $dest /MIR /XD .git .github __pycache__ tests .venv
 
-      - name: Ensure venv and install deps
+      - name: Ensure venv + install deps
         shell: powershell
         run: |
+          Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
           $venv = 'C:\monitoring\app\.venv'
-          if (-not (Test-Path $venv)) { py -3 -m venv $venv }
+          if (!(Test-Path $venv)) { python -m venv $venv }
           & $venv\Scripts\python.exe -m pip install -U pip
           if (Test-Path 'C:\monitoring\app\requirements.txt') {
             & $venv\Scripts\pip.exe install -r C:\monitoring\app\requirements.txt
           }
 
-      # Optional: run the monitor immediately after deploy
-      - name: Run monitoring once (summary email only)
+      # optional: quick sanity run
+      - name: Test run monitoring (no email)
         shell: powershell
-        env:
-          # point code to the .env file you created locally
-          DOTENV_PATH: C:\monitoring\.env
         run: |
-          # ensure the env file is seen (python-dotenv auto-loads .env in cwd)
-          Push-Location C:\monitoring
+          Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
           & C:\monitoring\app\.venv\Scripts\python.exe C:\monitoring\app\monitoring1.py all --one-email -p C:\
-          Pop-Location
