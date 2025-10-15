@@ -1,19 +1,32 @@
-# .github/workflows/monitor-cron.yml
 name: scheduled monitoring
 
 on:
   schedule:
-    - cron: "*/10 * * * *"     # every 10 minutes (UTC)
-  workflow_dispatch:            # allow manual run
+    # every 15 minutes (CRON is UTC!)
+    - cron: "*/15 * * * *"
+  workflow_dispatch: {}
 
 jobs:
-  run-monitor:
-    runs-on: [self-hosted, Windows]   # match your runner labels
+  run:
+    runs-on: [self-hosted, Windows]   # <<< use YOUR self-hosted Windows runner
+    defaults:
+      run:
+        shell: 'powershell -NoProfile -ExecutionPolicy Bypass -File {0}'
+    env:
+      MONITOR_LOG: C:\monitoring\app\server_monitoring.log
+
     steps:
-      - name: Run monitoring (summary email)
-        shell: powershell
+      - name: Run monitoring (one email only)
         run: |
-          Push-Location C:\monitoring
-          & C:\monitoring\app\.venv\Scripts\python.exe `
-            C:\monitoring\app\monitoring1.py all --one-email -p C:\
-          Pop-Location
+          Set-Location C:\monitoring\app
+          & .\.venv\Scripts\python.exe .\monitoring1.py all --one-email -p C:\
+
+      - name: Show last 40 lines of log (for debugging)
+        if: always()
+        run: |
+          Write-Host "MONITOR_LOG: $env:MONITOR_LOG"
+          if (Test-Path $env:MONITOR_LOG) {
+            Get-Content $env:MONITOR_LOG -Tail 40
+          } else {
+            Write-Host "Log not found."
+          }
