@@ -4,26 +4,26 @@ name: Deploy to self-hosted Windows
 on:
   push:
     branches: [ main ]
+  workflow_dispatch:
 
 jobs:
   deploy:
     runs-on: [self-hosted, Windows]
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Sync repo to C:\monitoring\app
-        shell: powershell
+        shell: powershell -NoProfile -ExecutionPolicy Bypass
         run: |
-          Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
           $dest = 'C:\monitoring\app'
           if (!(Test-Path $dest)) { New-Item -ItemType Directory -Path $dest | Out-Null }
           robocopy $PWD $dest /MIR /XD .git .github __pycache__ tests .venv
 
       - name: Ensure venv + install deps
-        shell: powershell
+        shell: powershell -NoProfile -ExecutionPolicy Bypass
         run: |
-          Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
           $venv = 'C:\monitoring\app\.venv'
           if (!(Test-Path $venv)) { python -m venv $venv }
           & $venv\Scripts\python.exe -m pip install -U pip
@@ -33,7 +33,6 @@ jobs:
 
       # optional: quick sanity run
       - name: Test run monitoring (no email)
-        shell: powershell
+        shell: powershell -NoProfile -ExecutionPolicy Bypass
         run: |
-          Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
           & C:\monitoring\app\.venv\Scripts\python.exe C:\monitoring\app\monitoring1.py all --one-email -p C:\
