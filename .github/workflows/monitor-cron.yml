@@ -1,0 +1,19 @@
+# .github/workflows/monitor-cron.yml
+name: scheduled monitoring
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"     # every 10 minutes (UTC)
+  workflow_dispatch:            # allow manual run
+
+jobs:
+  run-monitor:
+    runs-on: [self-hosted, Windows]   # match your runner labels
+    steps:
+      - name: Run monitoring (summary email)
+        shell: powershell
+        run: |
+          Push-Location C:\monitoring
+          & C:\monitoring\app\.venv\Scripts\python.exe `
+            C:\monitoring\app\monitoring1.py all --one-email -p C:\
+          Pop-Location

@@ -1,0 +1,42 @@
+name: Windows deploy (self-hosted)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, Windows]   # add your custom label if you used one
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Sync repo to C:\monitoring\app
+        shell: powershell
+        run: |
+          $dest = 'C:\monitoring\app'
+          robocopy "$env:GITHUB_WORKSPACE" $dest /MIR /NFL /NDL /NJH /NJS /NP | Out-Null
+
+      - name: Ensure venv and install deps
+        shell: powershell
+        run: |
+          $venv = 'C:\monitoring\app\.venv'
+          if (-not (Test-Path $venv)) { py -3 -m venv $venv }
+          & $venv\Scripts\python.exe -m pip install -U pip
+          if (Test-Path 'C:\monitoring\app\requirements.txt') {
+            & $venv\Scripts\pip.exe install -r C:\monitoring\app\requirements.txt
+          }
+
+      # Optional: run the monitor immediately after deploy
+      - name: Run monitoring once (summary email only)
+        shell: powershell
+        env:
+          # point code to the .env file you created locally
+          DOTENV_PATH: C:\monitoring\.env
+        run: |
+          # ensure the env file is seen (python-dotenv auto-loads .env in cwd)
+          Push-Location C:\monitoring
+          & C:\monitoring\app\.venv\Scripts\python.exe C:\monitoring\app\monitoring1.py all --one-email -p C:\
+          Pop-Location
