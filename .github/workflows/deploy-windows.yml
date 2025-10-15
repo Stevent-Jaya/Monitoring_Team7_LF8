@@ -10,6 +10,14 @@ jobs:
   deploy:
     runs-on: [self-hosted, Windows]
 
+    # set env for all steps (adjust Mailjet secrets only if you want real email)
+    env:
+      MONITOR_LOG: C:\monitoring\app\server_monitoring.log
+      # MAILJET_API_KEY: ${{ secrets.MJ_API_KEY }}
+      # MAILJET_API_SECRET: ${{ secrets.MJ_API_SECRET }}
+      # MAIL_FROM: you@example.com
+      # MAIL_TO: you@example.com
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -18,24 +26,15 @@ jobs:
         shell: 'powershell -NoProfile -ExecutionPolicy Bypass -File {0}'
         run: |
           $dest = 'C:\monitoring\app'
-          if (-not (Test-Path $dest)) {
-            New-Item -ItemType Directory -Path $dest | Out-Null
-          }
-
-          robocopy $PWD $dest /MIR /XD .git .github __pycache__ tests .venv `
-            /NFL /NDL /NJH /NJS
-
-          # Normalize RoboCopy exit code: 0..7 = success
-          $code = $LASTEXITCODE
-          if ($code -le 7) { exit 0 } else { exit $code }
+          if (!(Test-Path $dest)) { New-Item -ItemType Directory -Path $dest | Out-Null }
+          robocopy $PWD $dest /MIR /XD .git .github __pycache__ tests .venv
+          $code = $LASTEXITCODE; if ($code -le 7) { exit 0 } else { exit $code }
 
       - name: Ensure venv + install deps
         shell: 'powershell -NoProfile -ExecutionPolicy Bypass -File {0}'
         run: |
           $venv = 'C:\monitoring\app\.venv'
-          if (-not (Test-Path $venv)) {
-            python -m venv $venv
-          }
+          if (!(Test-Path $venv)) { python -m venv $venv }
           & $venv\Scripts\python.exe -m pip install -U pip
           if (Test-Path 'C:\monitoring\app\requirements.txt') {
             & $venv\Scripts\pip.exe install -r C:\monitoring\app\requirements.txt
@@ -44,4 +43,25 @@ jobs:
       - name: Test run monitoring (no email)
         shell: 'powershell -NoProfile -ExecutionPolicy Bypass -File {0}'
         run: |
-          & C:\monitoring\app\.venv\Scripts\python.exe C:\monitoring\app\monitoring1.py all --one-email -p C:\
+          Set-Location C:\monitoring\app
+          & .\.venv\Scripts\python.exe .\monitoring1.py all --one-email -p C:\
+
+      # Optional: show where we wrote the log
+      - name: Tail log
+        shell: 'powershell -NoProfile -ExecutionPolicy Bypass -File {0}'
+        run: |
+          Write-Host "MONITOR_LOG = $env:MONITOR_LOG"
+          if (Test-Path $env:MONITOR_LOG) {
+            Get-Content $env:MONITOR_LOG -Tail 40
+          } else {
+            Write-Host "Log not found."
+          }
+
+      # Optional: collect the log as an artifact for easy viewing
+      - name: Upload log artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: server_monitoring-log
+          path: C:\monitoring\app\server_monitoring.log
+          if-no-files-found: warn
