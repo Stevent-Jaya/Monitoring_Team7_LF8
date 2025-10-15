@@ -200,4 +200,31 @@ def send_summary_email(results: Iterable[Result], *, only_hard: bool = True) -> 
     _send_email(subject, body)
 
 
+def log_current_users() -> int:
+    """
+    Capture and log currently logged-in users. Returns the user count.
+    """
+    try:
+        import psutil  # local import keeps module import light if psutil is missing
+    except ImportError:
+        print("WARNING: psutil is required for user logging.")
+        return 0
+
+    users = psutil.users()
+    count = len(users)
+    details = []
+    for u in users:
+        try:
+            started = datetime.datetime.fromtimestamp(u.started).strftime("%H:%M")
+        except Exception:
+            started = "?"
+        host = getattr(u, "host", "") or "local"
+        details.append(f"{u.name}@{host} since {started}")
+
+    info_text = f"Currently logged in users ({count}): {', '.join(details) if details else '-'}"
+    # For user info, hard limit is not relevant; pass 0 for display.
+    _log_message("USER_INFO", float(count), 0.0, info_text)
+    return count
+
+
 __all__ = ["check_limits", "send_summary_email", "log_current_users", "Result"]
