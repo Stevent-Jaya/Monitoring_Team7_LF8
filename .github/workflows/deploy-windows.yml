@@ -15,14 +15,14 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Sync repo to C:\monitoring\app
-        shell: powershell -NoProfile -ExecutionPolicy Bypass
+        shell: 'powershell -NoProfile -ExecutionPolicy Bypass -File {0}'
         run: |
           $dest = 'C:\monitoring\app'
           if (!(Test-Path $dest)) { New-Item -ItemType Directory -Path $dest | Out-Null }
           robocopy $PWD $dest /MIR /XD .git .github __pycache__ tests .venv
 
       - name: Ensure venv + install deps
-        shell: powershell -NoProfile -ExecutionPolicy Bypass
+        shell: 'powershell -NoProfile -ExecutionPolicy Bypass -File {0}'
         run: |
           $venv = 'C:\monitoring\app\.venv'
           if (!(Test-Path $venv)) { python -m venv $venv }
@@ -31,8 +31,7 @@ jobs:
             & $venv\Scripts\pip.exe install -r C:\monitoring\app\requirements.txt
           }
 
-      # optional: quick sanity run
       - name: Test run monitoring (no email)
-        shell: powershell -NoProfile -ExecutionPolicy Bypass
+        shell: 'powershell -NoProfile -ExecutionPolicy Bypass -File {0}'
         run: |
           & C:\monitoring\app\.venv\Scripts\python.exe C:\monitoring\app\monitoring1.py all --one-email -p C:\
