@@ -18,14 +18,24 @@ jobs:
         shell: 'powershell -NoProfile -ExecutionPolicy Bypass -File {0}'
         run: |
           $dest = 'C:\monitoring\app'
-          if (!(Test-Path $dest)) { New-Item -ItemType Directory -Path $dest | Out-Null }
-          robocopy $PWD $dest /MIR /XD .git .github __pycache__ tests .venv
+          if (-not (Test-Path $dest)) {
+            New-Item -ItemType Directory -Path $dest | Out-Null
+          }
+
+          robocopy $PWD $dest /MIR /XD .git .github __pycache__ tests .venv `
+            /NFL /NDL /NJH /NJS
+
+          # Normalize RoboCopy exit code: 0..7 = success
+          $code = $LASTEXITCODE
+          if ($code -le 7) { exit 0 } else { exit $code }
 
       - name: Ensure venv + install deps
         shell: 'powershell -NoProfile -ExecutionPolicy Bypass -File {0}'
         run: |
           $venv = 'C:\monitoring\app\.venv'
-          if (!(Test-Path $venv)) { python -m venv $venv }
+          if (-not (Test-Path $venv)) {
+            python -m venv $venv
+          }
           & $venv\Scripts\python.exe -m pip install -U pip
           if (Test-Path 'C:\monitoring\app\requirements.txt') {
             & $venv\Scripts\pip.exe install -r C:\monitoring\app\requirements.txt
